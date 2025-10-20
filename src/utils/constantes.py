@@ -42,6 +42,7 @@ NARANJA = (255, 140, 0)
 NARANJA_BLOQUE = (218, 85, 34)  # Color bloques naranjas como en Mario original
 VERDE_TUBO = (0, 168, 0)
 GRIS = (128, 128, 128)
+ROSA = (255, 192, 203)  # Color rosa para la princesa
 
 # Estados de Mario
 class EstadoMario(Enum):
@@ -60,6 +61,7 @@ class EstadoJuego(Enum):
     PAUSA = "pausa"
     GAME_OVER = "game_over"
     NIVEL_COMPLETADO = "nivel_completado"
+    JUEGO_COMPLETADO = "juego_completado"  # Final del juego - Princesa rescatada
 
 # Tipos de enemigos
 class TipoEnemigo(Enum):
@@ -73,6 +75,39 @@ class TipoPowerUp(Enum):
     HONGO = "hongo"
     FLOR = "flor"
     ESTRELLA = "estrella"
+
+# Sistema de Quiz de Inglés
+class EstadoQuiz(Enum):
+    """Estados del sistema de quiz"""
+    INACTIVO = "inactivo"
+    MOSTRANDO_PREGUNTA = "mostrando_pregunta"
+    ESPERANDO_RESPUESTA = "esperando_respuesta"
+    RESPUESTA_CORRECTA = "respuesta_correcta"
+    RESPUESTA_INCORRECTA = "respuesta_incorrecta"
+    ANIMACION_EXITO = "animacion_exito"
+    ANIMACION_ERROR = "animacion_error"
+
+# Colores para el sistema de quiz
+COLORES_QUIZ = {
+    'fondo_overlay': (0, 0, 0, 180),
+    'fondo_pregunta': (50, 50, 70),
+    'texto_pregunta': (255, 255, 255),
+    'opcion_normal': (200, 200, 200),
+    'opcion_hover': (255, 255, 100),
+    'opcion_correcta': (0, 255, 0),
+    'opcion_incorrecta': (255, 100, 100),
+    'titulo_exito': (0, 255, 0),
+    'titulo_error': (255, 100, 100),
+    'estadisticas': (255, 255, 255)
+}
+
+# Configuración del sistema de llaves
+CONFIGURACION_LLAVES = {
+    'color_llave': (255, 215, 0),  # Dorado
+    'color_contador': (255, 255, 255),
+    'posicion_contador': (650, 20),  # Esquina superior derecha
+    'icono_size': (20, 15)
+}
 
 # Sonidos del juego
 SONIDOS = {

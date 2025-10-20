@@ -45,6 +45,11 @@ class Enemigo(pygame.sprite.Sprite):
         """
         if not self.vivo:
             return
+        
+        # Eliminar enemigo si cae fuera del mapa
+        if self.rect.y > ALTO + 100:
+            self.vivo = False
+            return
             
         if self.aplastado:
             self.tiempo_aplastado += 1

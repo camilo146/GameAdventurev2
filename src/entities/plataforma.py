@@ -4,7 +4,7 @@ Clase Plataforma para los elementos sólidos del juego.
 
 import pygame
 from typing import Literal
-from src.utils.constantes import (VERDE, MARRON, NARANJA, VERDE_TUBO, BLANCO, 
+from src.utils.constantes import (VERDE, MARRON, NARANJA, VERDE_TUBO, BLANCO, NEGRO,
                                   MARRON_LADRILLO, VERDE_HIERBA, NARANJA_BLOQUE, 
                                   AMARILLO_BLOQUE)
 
@@ -19,7 +19,7 @@ class Plataforma(pygame.sprite.Sprite):
     """
     
     def __init__(self, x: int, y: int, ancho: int, alto: int, 
-                 tipo: Literal['normal', 'suelo', 'bloque', 'tubo', 'nube', 'metal'] = 'normal'):
+                 tipo: Literal['normal', 'suelo', 'bloque', 'tubo', 'nube', 'metal', 'castillo', 'castillo_final', 'barrera'] = 'normal'):
         super().__init__()
         self.rect = pygame.Rect(x, y, ancho, alto)
         self.tipo = tipo
@@ -95,36 +95,78 @@ class Plataforma(pygame.sprite.Sprite):
                 pygame.draw.rect(superficie, (160, 160, 160), self.rect)
                 pygame.draw.rect(superficie, (100, 100, 100), self.rect, 2)
             elif hasattr(self, 'tiene_powerup') and self.tiene_powerup and not self.powerup_liberado:
-                # Bloques con power-up - estilo Mario Bros clásico
+                # BLOQUE DE INTERROGACIÓN - ESTILO MARIO BROS NES CLÁSICO
                 import math
-                brillo_intensidad = (math.sin(self.brillo_timer * 3) + 1) / 2  # 0 a 1
-                base_dorado = 200 + int(55 * brillo_intensidad)
-                color = (base_dorado, base_dorado - 40, 0)  # Dorado animado
                 
-                # Fondo del bloque
-                pygame.draw.rect(superficie, color, self.rect)
+                # Animación de brillo/pulsación (más lenta y suave)
+                brillo_intensidad = (math.sin(self.brillo_timer * 2) + 1) / 2  # 0 a 1
                 
-                # Patrón de puntos como en Mario Bros original
-                for i in range(2):
-                    for j in range(2):
-                        x = self.rect.x + 4 + (i * 12)
-                        y = self.rect.y + 4 + (j * 12)
-                        pygame.draw.circle(superficie, AMARILLO_BLOQUE, (x, y), 2)
+                # Colores base del bloque dorado/amarillo clásico
+                amarillo_base = (218, 165, 32)  # Dorado/Oro
+                amarillo_claro = (255, 215, 0)  # Amarillo brillante
+                amarillo_oscuro = (184, 134, 11)  # Oro oscuro
+                naranja_sombra = (139, 90, 0)  # Sombra naranja
                 
-                # Borde del bloque
-                pygame.draw.rect(superficie, (160, 120, 0), self.rect, 2)
+                # Color principal con animación
+                intensidad = 0.8 + (0.2 * brillo_intensidad)
+                color_principal = (
+                    int(amarillo_base[0] * intensidad),
+                    int(amarillo_base[1] * intensidad),
+                    int(amarillo_base[2] * intensidad)
+                )
                 
-                # Símbolo de interrogación más grande y visible
+                # === FONDO DEL BLOQUE (estilo 3D) ===
+                pygame.draw.rect(superficie, color_principal, self.rect)
+                
+                # Sombras para efecto 3D (abajo y derecha)
+                pygame.draw.line(superficie, naranja_sombra, 
+                               (self.rect.x, self.rect.bottom - 1), 
+                               (self.rect.right, self.rect.bottom - 1), 2)
+                pygame.draw.line(superficie, naranja_sombra, 
+                               (self.rect.right - 1, self.rect.y), 
+                               (self.rect.right - 1, self.rect.bottom), 2)
+                
+                # Luces para efecto 3D (arriba y izquierda)
+                pygame.draw.line(superficie, amarillo_claro, 
+                               (self.rect.x, self.rect.y), 
+                               (self.rect.right, self.rect.y), 2)
+                pygame.draw.line(superficie, amarillo_claro, 
+                               (self.rect.x, self.rect.y), 
+                               (self.rect.x, self.rect.bottom), 2)
+                
+                # === PATRÓN DE CÍRCULOS (decoración clásica de Mario) ===
+                # 4 círculos en las esquinas como el original
+                radio_circulo = 2
+                margen = 4
+                posiciones_circulos = [
+                    (self.rect.x + margen, self.rect.y + margen),
+                    (self.rect.right - margen, self.rect.y + margen),
+                    (self.rect.x + margen, self.rect.bottom - margen),
+                    (self.rect.right - margen, self.rect.bottom - margen)
+                ]
+                
+                for pos in posiciones_circulos:
+                    pygame.draw.circle(superficie, amarillo_oscuro, pos, radio_circulo)
+                
+                # === SÍMBOLO "?" GRANDE Y CLARO ===
                 centro_x = self.rect.centerx
                 centro_y = self.rect.centery
                 
-                # Dibujar "?" estilo pixel art
-                # Parte superior del ?
-                pygame.draw.rect(superficie, BLANCO, (centro_x - 3, centro_y - 6, 6, 2))
-                pygame.draw.rect(superficie, BLANCO, (centro_x + 1, centro_y - 4, 2, 4))
-                pygame.draw.rect(superficie, BLANCO, (centro_x - 1, centro_y - 2, 2, 2))
-                # Punto del ?
-                pygame.draw.rect(superficie, BLANCO, (centro_x - 1, centro_y + 2, 2, 2))
+                # Color del "?" - blanco puro para máximo contraste
+                color_pregunta = (255, 255, 255)
+                
+                # Dibujar "?" estilo pixel art más grande y definido
+                # Parte superior curva del ?
+                pygame.draw.rect(superficie, color_pregunta, (centro_x - 4, centro_y - 7, 8, 3))
+                # Lateral derecho
+                pygame.draw.rect(superficie, color_pregunta, (centro_x + 2, centro_y - 5, 3, 5))
+                # Parte inferior curva
+                pygame.draw.rect(superficie, color_pregunta, (centro_x - 1, centro_y - 2, 4, 3))
+                # Punto inferior del ?
+                pygame.draw.rect(superficie, color_pregunta, (centro_x - 1, centro_y + 3, 3, 3))
+                
+                # Borde exterior del bloque (negro para definición)
+                pygame.draw.rect(superficie, NEGRO, self.rect, 1)
             else:
                 # Bloques normales - estilo ladrillo como Mario Bros
                 pygame.draw.rect(superficie, NARANJA_BLOQUE, self.rect)
@@ -204,7 +246,7 @@ class Plataforma(pygame.sprite.Sprite):
             # Borde metálico
             pygame.draw.rect(superficie, color_oscuro, self.rect, 2)
             
-        else:  # Plataformas normales
+        elif self.tipo == 'normal':  # Plataformas normales
             # Plataforma con textura de ladrillos
             color_base = (139, 69, 19)  # Marrón ladrillo
             color_borde = (101, 67, 33)  # Marrón oscuro
@@ -223,3 +265,95 @@ class Plataforma(pygame.sprite.Sprite):
             pygame.draw.line(superficie, (180, 140, 100), 
                            (self.rect.x, self.rect.y), 
                            (self.rect.x + self.rect.width, self.rect.y), 1)
+        
+        elif self.tipo == 'castillo':
+            # Plataforma de CASTILLO DEL MAL (nivel 4) - Oscuro y siniestro
+            color_castillo = (60, 60, 80)  # Gris oscuro azulado
+            color_piedra = (50, 50, 70)    # Más oscuro
+            color_borde = (30, 30, 50)     # Negro azulado
+            color_musgo = (20, 40, 20)     # Verde muy oscuro
+            
+            # Base de piedra oscura
+            pygame.draw.rect(superficie, color_castillo, self.rect)
+            
+            # Patrón de piedras del castillo
+            piedra_w = 20
+            piedra_h = 10
+            for y in range(self.rect.y, self.rect.y + self.rect.height, piedra_h):
+                for x in range(self.rect.x, self.rect.x + self.rect.width, piedra_w):
+                    offset = piedra_w // 2 if ((y - self.rect.y) // piedra_h) % 2 else 0
+                    piedra_x = x + offset
+                    
+                    if piedra_x < self.rect.x + self.rect.width:
+                        # Dibujar piedra individual
+                        pygame.draw.rect(superficie, color_piedra, 
+                                       (piedra_x, y, min(piedra_w, self.rect.x + self.rect.width - piedra_x), piedra_h))
+                        # Borde de la piedra
+                        pygame.draw.rect(superficie, color_borde, 
+                                       (piedra_x, y, min(piedra_w, self.rect.x + self.rect.width - piedra_x), piedra_h), 1)
+            
+            # Grietas en el castillo (decoración)
+            import random
+            random.seed(self.rect.x + self.rect.y)  # Semilla fija para consistencia
+            for _ in range(self.rect.width // 30):
+                grieta_x = self.rect.x + random.randint(0, self.rect.width - 2)
+                grieta_y = self.rect.y + random.randint(0, self.rect.height - 10)
+                pygame.draw.line(superficie, color_borde, 
+                               (grieta_x, grieta_y), (grieta_x + 1, grieta_y + random.randint(5, 10)), 1)
+            
+            # Musgo/deterioro (manchas verdes oscuras)
+            if self.rect.width > 30:
+                for i in range(0, self.rect.width, 40):
+                    musgo_x = self.rect.x + i + random.randint(-5, 5)
+                    musgo_y = self.rect.bottom - random.randint(2, 5)
+                    pygame.draw.circle(superficie, color_musgo, (musgo_x, musgo_y), 2)
+            
+            # Borde oscuro general
+            pygame.draw.rect(superficie, color_borde, self.rect, 2)
+        
+        elif self.tipo == 'castillo_final':
+            # Plataforma del CASTILLO FINAL (nivel 5) - Más elegante pero oscuro
+            color_base = (80, 70, 100)      # Púrpura oscuro
+            color_piedra = (70, 60, 90)     # Púrpura más oscuro
+            color_borde = (40, 30, 60)      # Púrpura muy oscuro
+            color_dorado = (218, 165, 32)   # Detalles dorados
+            
+            # Base de piedra púrpura
+            pygame.draw.rect(superficie, color_base, self.rect)
+            
+            # Patrón de piedras del castillo final
+            piedra_w = 20
+            piedra_h = 10
+            for y in range(self.rect.y, self.rect.y + self.rect.height, piedra_h):
+                for x in range(self.rect.x, self.rect.x + self.rect.width, piedra_w):
+                    offset = piedra_w // 2 if ((y - self.rect.y) // piedra_h) % 2 else 0
+                    piedra_x = x + offset
+                    
+                    if piedra_x < self.rect.x + self.rect.width:
+                        # Dibujar piedra individual
+                        pygame.draw.rect(superficie, color_piedra, 
+                                       (piedra_x, y, min(piedra_w, self.rect.x + self.rect.width - piedra_x), piedra_h))
+                        # Borde de la piedra
+                        pygame.draw.rect(superficie, color_borde, 
+                                       (piedra_x, y, min(piedra_w, self.rect.x + self.rect.width - piedra_x), piedra_h), 1)
+            
+            # Detalles dorados (decoración real)
+            for i in range(0, self.rect.width, 30):
+                detalle_x = self.rect.x + i + 10
+                if detalle_x < self.rect.right - 5:
+                    # Pequeños detalles dorados en la parte superior
+                    pygame.draw.line(superficie, color_dorado, 
+                                   (detalle_x, self.rect.y + 2), (detalle_x, self.rect.y + 4), 2)
+            
+            # Borde púrpura oscuro
+            pygame.draw.rect(superficie, color_borde, self.rect, 2)
+            
+            # Brillo sutil en la parte superior (efecto mágico)
+            pygame.draw.line(superficie, (120, 100, 150), 
+                           (self.rect.x + 1, self.rect.y + 1), 
+                           (self.rect.x + self.rect.width - 2, self.rect.y + 1), 1)
+                           
+        elif self.tipo == 'barrera':
+            # Barrera invisible que bloquea el paso hasta que se abra la puerta
+            # Las barreras son completamente invisibles pero mantienen colisión física
+            pass

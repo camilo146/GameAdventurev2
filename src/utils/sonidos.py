@@ -45,9 +45,11 @@ class GestorSonidos:
                     sonido.set_volume(self.volumen_efectos)
                     self.sonidos[nombre] = sonido
                 else:
-                    print(f"Archivo de sonido no encontrado: {ruta_completa}")
+                    # Silenciosamente omitir archivos faltantes en lugar de mostrar error
+                    pass
             except pygame.error as e:
-                print(f"Error cargando sonido {archivo}: {e}")
+                # Silenciosamente omitir errores de carga
+                pass
     
     def reproducir_efecto(self, nombre: str, loops: int = 0) -> None:
         """
@@ -85,10 +87,10 @@ class GestorSonidos:
                 pygame.mixer.music.set_volume(self.volumen_musica)
                 return True
             else:
-                print(f"Archivo de música no encontrado: {ruta_completa}")
+                # Silenciosamente omitir archivos faltantes
                 return False
         except pygame.error as e:
-            print(f"Error cargando música {archivo}: {e}")
+            # Silenciosamente omitir errores de carga
             return False
     
     def reproducir_musica(self, archivo: str, loops: int = -1, fade_in: int = 0) -> None:

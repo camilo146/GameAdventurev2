@@ -5,10 +5,13 @@ Clase Mario actualizada con sistema de estados, partículas y sonidos.
 import pygame
 import math
 from dataclasses import dataclass
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, TYPE_CHECKING
 from src.utils.constantes import *
 from src.utils.particulas import SistemaParticulas
 from src.utils.sonidos import gestor_sonidos
+
+if TYPE_CHECKING:
+    from src.entities.bola_fuego import BolaFuego
 
 @dataclass
 class ColisionInfo:
@@ -41,8 +44,10 @@ class Mario(pygame.sprite.Sprite):
     VELOCIDAD_CORRIENDO: float = 8.0
     ALTO_NORMAL: int = 32
     ALTO_GRANDE: int = 48
-    TIEMPO_INVENCIBLE: int = 120
+    TIEMPO_INVENCIBLE: int = 480  # 8 segundos de invencibilidad (60 FPS * 8)
     TIEMPO_TRANSFORMACION: int = 60
+    TIEMPO_POWER_UP_GRANDE: int = 480  # 8 segundos de estado GRANDE (60 FPS * 8)
+    TIEMPO_POWER_UP_FUEGO: int = 600  # 10 segundos de estado FUEGO (60 FPS * 10)
     
     def __init__(self, x: int, y: int) -> None:
         super().__init__()
@@ -61,6 +66,8 @@ class Mario(pygame.sprite.Sprite):
         self.particulas = SistemaParticulas()
         self.tiempo_transformacion = 0
         self.corriendo = False
+        self.tiempo_power_up_grande = 0  # Temporizador para estado GRANDE temporal
+        self.tiempo_power_up_fuego = 0  # Temporizador para estado FUEGO temporal
         
         # Estados anteriores para transiciones
         self.estado_anterior = EstadoMario.PEQUENO
@@ -79,6 +86,8 @@ class Mario(pygame.sprite.Sprite):
         self._actualizar_animacion()
         self._actualizar_invencibilidad()
         self._actualizar_transformacion()
+        self._actualizar_power_up_grande()  # Nuevo: actualizar temporizador de estado GRANDE
+        self._actualizar_power_up_fuego()  # Nuevo: actualizar temporizador de estado FUEGO
         self._aplicar_gravedad()
         self._manejar_entrada()
         self._actualizar_posicion(plataformas)
@@ -108,6 +117,38 @@ class Mario(pygame.sprite.Sprite):
             if self.tiempo_transformacion % 10 == 0:
                 self.particulas.crear_efecto(self.rect.centerx, self.rect.centery, 'powerup')
     
+    def _actualizar_power_up_grande(self) -> None:
+        """Actualiza el temporizador del estado GRANDE temporal."""
+        # Solo aplicar si Mario está en estado GRANDE (no FUEGO ni INVENCIBLE)
+        if self.estado == EstadoMario.GRANDE and self.tiempo_power_up_grande > 0:
+            self.tiempo_power_up_grande -= 1
+            
+            # Advertencia visual cuando quedan 2 segundos (120 frames)
+            if self.tiempo_power_up_grande <= 120 and self.tiempo_power_up_grande % 20 == 0:
+                self.particulas.crear_efecto(self.rect.centerx, self.rect.centery, 'advertencia')
+            
+            # Cuando se acaba el tiempo, volver a PEQUEÑO
+            if self.tiempo_power_up_grande == 0:
+                self._cambiar_estado(EstadoMario.PEQUENO)
+                self.tiempo_transformacion = self.TIEMPO_TRANSFORMACION
+                gestor_sonidos.reproducir_efecto('powerup')  # Sonido de transformación
+    
+    def _actualizar_power_up_fuego(self) -> None:
+        """Actualiza el temporizador del estado FUEGO temporal."""
+        # Solo aplicar si Mario está en estado FUEGO
+        if self.estado == EstadoMario.FUEGO and self.tiempo_power_up_fuego > 0:
+            self.tiempo_power_up_fuego -= 1
+            
+            # Advertencia visual cuando quedan 3 segundos (180 frames)
+            if self.tiempo_power_up_fuego <= 180 and self.tiempo_power_up_fuego % 20 == 0:
+                self.particulas.crear_efecto(self.rect.centerx, self.rect.centery, 'advertencia')
+            
+            # Cuando se acaba el tiempo, volver al estado anterior (PEQUEÑO)
+            if self.tiempo_power_up_fuego == 0:
+                self._cambiar_estado(EstadoMario.PEQUENO)
+                self.tiempo_transformacion = self.TIEMPO_TRANSFORMACION
+                gestor_sonidos.reproducir_efecto('powerup')  # Sonido de transformación
+    
     def _aplicar_gravedad(self) -> None:
         """Aplica la gravedad al movimiento vertical."""
         if self.estado != EstadoMario.MURIENDO:
@@ -134,10 +175,16 @@ class Mario(pygame.sprite.Sprite):
     
     def _manejar_muerte(self) -> None:
         """Maneja la lógica cuando Mario está muriendo."""
+        # Aplicar gravedad reducida durante muerte
         self.velocidad_y += GRAVEDAD * 0.5
+        # LIMITAR la velocidad de caída para evitar valores extremos
+        self.velocidad_y = min(self.velocidad_y, 15)
+        # Actualizar posición vertical
+        self.rect.y += int(self.velocidad_y)
+        
         if self.rect.y > ALTO + 100:
-            # Mario ha caído fuera de la pantalla
-            pass
+            # Mario ha caído fuera de la pantalla, marcar como completamente muerto
+            self.vivo = False
     
     def saltar(self) -> None:
         """Hace que Mario salte si está en el suelo."""
@@ -153,6 +200,32 @@ class Mario(pygame.sprite.Sprite):
             gestor_sonidos.reproducir_efecto('salto')
             self.particulas.crear_efecto(self.rect.centerx, self.rect.bottom, 'salto')
     
+    def lanzar_fuego(self) -> Optional['BolaFuego']:
+        """
+        Lanza una bola de fuego si Mario tiene el poder de fuego.
+        
+        Returns:
+            BolaFuego si se puede lanzar, None si no
+        """
+        if self.estado == EstadoMario.FUEGO and self.vivo and self.estado != EstadoMario.MURIENDO:
+            from src.entities.bola_fuego import BolaFuego
+            
+            # Posición de lanzamiento
+            offset_x = 20 if self.direccion == 'derecha' else -20
+            x = self.rect.centerx + offset_x
+            y = self.rect.centery
+            
+            # Crear bola de fuego
+            bola = BolaFuego(x, y, self.direccion)
+            
+            # Efectos visuales y sonoros
+            self.particulas.crear_efecto(x, y, 'fuego')
+            gestor_sonidos.reproducir_efecto('powerup')
+            
+            return bola
+        
+        return None
+    
     def _cambiar_estado(self, nuevo_estado: EstadoMario) -> None:
         """
         Cambia el estado de Mario.
@@ -167,11 +240,16 @@ class Mario(pygame.sprite.Sprite):
     
     def _aplicar_cambio_estado(self) -> None:
         """Aplica los cambios necesarios según el nuevo estado."""
-        if self.estado == EstadoMario.GRANDE or self.estado == EstadoMario.FUEGO:
+        if self.estado == EstadoMario.GRANDE:
+            # Solo el estado GRANDE cambia el tamaño
             if self.alto == self.ALTO_NORMAL:
                 self.alto = self.ALTO_GRANDE
                 self.rect.height = self.ALTO_GRANDE
                 self.rect.y -= 16
+        elif self.estado == EstadoMario.FUEGO:
+            # El estado FUEGO NO cambia el tamaño, solo da habilidad de lanzar fuego
+            # Mario mantiene su tamaño actual (PEQUENO o GRANDE)
+            pass
         elif self.estado == EstadoMario.PEQUENO:
             if self.alto == self.ALTO_GRANDE:
                 self.alto = self.ALTO_NORMAL
@@ -192,20 +270,34 @@ class Mario(pygame.sprite.Sprite):
         Returns:
             bool: True si Mario muere, False si sobrevive
         """
+        # No recibir daño si ya está muriendo o muerto
+        if not self.vivo or self.estado == EstadoMario.MURIENDO:
+            return False
+            
         if self.invencible > 0 or self.estado == EstadoMario.INVENCIBLE:
             return False
             
         if self.estado == EstadoMario.FUEGO:
-            self._cambiar_estado(EstadoMario.GRANDE)
+            # Al recibir daño con fuego, solo pierde el poder (vuelve a PEQUEÑO)
+            self._cambiar_estado(EstadoMario.PEQUENO)
             self.invencible = self.TIEMPO_INVENCIBLE
             self.tiempo_transformacion = self.TIEMPO_TRANSFORMACION
+            self.tiempo_power_up_fuego = 0  # Cancelar temporizador de fuego
+            # Efecto visual de daño
+            self.particulas.crear_efecto(self.rect.centerx, self.rect.centery, 'enemigo')
+            gestor_sonidos.reproducir_efecto('powerup')  # Sonido de transformación
             return False
         elif self.estado == EstadoMario.GRANDE:
             self._cambiar_estado(EstadoMario.PEQUENO)
             self.invencible = self.TIEMPO_INVENCIBLE
             self.tiempo_transformacion = self.TIEMPO_TRANSFORMACION
+            self.tiempo_power_up_grande = 0  # Cancelar temporizador de estado GRANDE
+            # Efecto visual de daño
+            self.particulas.crear_efecto(self.rect.centerx, self.rect.centery, 'enemigo')
+            gestor_sonidos.reproducir_efecto('powerup')  # Sonido de transformación
             return False
         else:
+            # Mario pequeño muere
             self._cambiar_estado(EstadoMario.MURIENDO)
             return True
     
@@ -222,8 +314,14 @@ class Mario(pygame.sprite.Sprite):
         if tipo == TipoPowerUp.HONGO:
             if self.estado == EstadoMario.PEQUENO:
                 self._cambiar_estado(EstadoMario.GRANDE)
+                self.tiempo_power_up_grande = self.TIEMPO_POWER_UP_GRANDE  # 8 segundos temporales
+            elif self.estado == EstadoMario.GRANDE:
+                # Si ya es grande, renovar el tiempo
+                self.tiempo_power_up_grande = self.TIEMPO_POWER_UP_GRANDE
         elif tipo == TipoPowerUp.FLOR:
+            # La flor NO hace crecer a Mario, solo le da poder de fuego temporal
             self._cambiar_estado(EstadoMario.FUEGO)
+            self.tiempo_power_up_fuego = self.TIEMPO_POWER_UP_FUEGO  # 10 segundos temporales
         elif tipo == TipoPowerUp.ESTRELLA:
             self.estado_anterior = self.estado
             self._cambiar_estado(EstadoMario.INVENCIBLE)
@@ -269,9 +367,6 @@ class Mario(pygame.sprite.Sprite):
                     if hasattr(plataforma, 'tipo') and plataforma.tipo == 'bloque' and not plataforma.golpeado:
                         plataforma.golpeado = True
                         self.particulas.crear_efecto(plataforma.rect.centerx, plataforma.rect.centery, 'powerup')
-                        # Notificar al juego que se golpeó un bloque (se manejará en la clase Juego)
-                        if hasattr(plataforma, 'contiene_powerup'):
-                            plataforma.contiene_powerup = True
         
         return colisiones
     
@@ -288,10 +383,7 @@ class Mario(pygame.sprite.Sprite):
         if self.rect.left < 0:
             self.rect.left = 0
         # Eliminar límite derecho - permitir moverse por todo el mapa
-            
-        # Muerte por caída
-        if self.rect.y > ALTO and self.vivo:
-            self._cambiar_estado(EstadoMario.MURIENDO)
+        # Nota: La muerte por caída se maneja en la clase Juego
 
     def dibujar(self, superficie: pygame.Surface) -> None:
         """
@@ -315,129 +407,150 @@ class Mario(pygame.sprite.Sprite):
         
     def _dibujar_cuerpo(self, superficie: pygame.Surface) -> None:
         """
-        Dibuja el cuerpo principal de Mario.
+        Dibuja el cuerpo principal de Mario - Estilo clásico NES mejorado.
 
         Args:
             superficie: Superficie de pygame donde se dibujará
         """
-        # Determinar color según estado
+        # Determinar colores según estado
         if self.estado == EstadoMario.FUEGO:
-            color_ropa = BLANCO
-            color_secundario = ROJO
+            color_camisa = BLANCO
+            color_overol = ROJO
         elif self.estado == EstadoMario.INVENCIBLE:
             # Efecto arcoíris para estado invencible
             frame_color = (self.animacion_frame * 60) % 360
             import colorsys
             rgb = colorsys.hsv_to_rgb(frame_color / 360.0, 1.0, 1.0)
-            color_ropa = tuple(int(c * 255) for c in rgb)
-            color_secundario = BLANCO
+            color_camisa = tuple(int(c * 255) for c in rgb)
+            color_overol = BLANCO
         else:
-            color_ropa = ROJO
-            color_secundario = AZUL
+            color_camisa = ROJO
+            color_overol = (0, 0, 200)  # Azul overol más oscuro
         
-        # Dibujar Mario estilo pixel art más fiel al original
         x, y = self.rect.x, self.rect.y
-        color_piel = (255, 220, 177)  # Color piel
+        color_piel = (255, 206, 165)  # Color piel más fiel al original
+        color_gorra = color_camisa
         
-        # Cabeza (círculo más grande y piel)
-        pygame.draw.circle(superficie, color_piel, (x + 16, y + 8), 10)
+        # === GORRA ROJA ===
+        # Base de la gorra (más grande y prominente)
+        pygame.draw.rect(superficie, color_gorra, (x + 8, y + 2, 16, 6))
+        # Visera de la gorra (saliente)
+        pygame.draw.rect(superficie, color_gorra, (x + 6, y + 7, 20, 3))
+        # Sombra de la visera
+        pygame.draw.rect(superficie, (150, 0, 0), (x + 6, y + 9, 20, 1))
         
-        # Gorra roja (característica de Mario)
-        pygame.draw.circle(superficie, color_ropa, (x + 16, y + 6), 8)
+        # Símbolo "M" en la gorra (círculo blanco)
+        pygame.draw.circle(superficie, BLANCO, (x + 16, y + 5), 3)
+        # Letra "M" roja dentro
+        pygame.draw.rect(superficie, color_gorra, (x + 14, y + 4, 1, 3))
+        pygame.draw.rect(superficie, color_gorra, (x + 16, y + 4, 1, 2))
+        pygame.draw.rect(superficie, color_gorra, (x + 18, y + 4, 1, 3))
         
-        # Visera de la gorra
-        pygame.draw.rect(superficie, color_ropa, (x + 8, y + 8, 16, 4))
+        # === CARA Y CABELLO ===
+        # Cabello marrón oscuro (asoma por los lados)
+        pygame.draw.rect(superficie, (101, 67, 33), (x + 7, y + 8, 2, 3))
+        pygame.draw.rect(superficie, (101, 67, 33), (x + 23, y + 8, 2, 3))
         
-        # Cuerpo - Camisa
-        pygame.draw.rect(superficie, color_ropa, (x + 10, y + 14, 12, 8))
+        # Cara (piel)
+        pygame.draw.rect(superficie, color_piel, (x + 9, y + 10, 14, 8))
         
-        # Overol (pantalones azules con tirantes)
-        pygame.draw.rect(superficie, color_secundario, (x + 10, y + 22, 12, 10))
+        # Ojos (dos puntos negros)
+        ojo_offset = 2 if self.direccion == 'derecha' else -2
+        pygame.draw.rect(superficie, NEGRO, (x + 12 + ojo_offset, y + 12, 2, 2))
+        pygame.draw.rect(superficie, NEGRO, (x + 17 + ojo_offset, y + 12, 2, 2))
         
-        # Tirantes del overol
-        pygame.draw.line(superficie, color_secundario, (x + 12, y + 16), (x + 12, y + 22), 2)
-        pygame.draw.line(superficie, color_secundario, (x + 20, y + 16), (x + 20, y + 22), 2)
+        # Nariz (pequeño rectángulo)
+        pygame.draw.rect(superficie, (220, 150, 100), (x + 15, y + 14, 2, 3))
         
-        # Botones dorados del overol
-        pygame.draw.circle(superficie, AMARILLO, (x + 12, y + 18), 1)
-        pygame.draw.circle(superficie, AMARILLO, (x + 20, y + 18), 1)
+        # BIGOTE NEGRO PROMINENTE (característica icónica)
+        pygame.draw.rect(superficie, NEGRO, (x + 11, y + 16, 3, 2))
+        pygame.draw.rect(superficie, NEGRO, (x + 18, y + 16, 3, 2))
+        pygame.draw.rect(superficie, NEGRO, (x + 14, y + 17, 4, 1))
         
-        # Brazos (color piel)
+        # === CUERPO - CAMISA ROJA ===
+        pygame.draw.rect(superficie, color_camisa, (x + 10, y + 18, 12, 6))
+        
+        # === OVEROL AZUL ===
+        # Pantalones
+        pygame.draw.rect(superficie, color_overol, (x + 9, y + 24, 14, 4))
+        
+        # Tirantes del overol (característicos)
+        pygame.draw.rect(superficie, color_overol, (x + 11, y + 18, 2, 6))
+        pygame.draw.rect(superficie, color_overol, (x + 19, y + 18, 2, 6))
+        
+        # Botones dorados grandes (más visibles)
+        pygame.draw.circle(superficie, AMARILLO, (x + 12, y + 20), 2)
+        pygame.draw.circle(superficie, AMARILLO, (x + 20, y + 20), 2)
+        pygame.draw.rect(superficie, (200, 180, 0), (x + 11, y + 20, 2, 1))  # Brillo
+        pygame.draw.rect(superficie, (200, 180, 0), (x + 19, y + 20, 2, 1))
+        
+        # === GUANTES BLANCOS (brazos) ===
         if self.direccion == 'derecha':
-            pygame.draw.rect(superficie, color_piel, (x + 22, y + 16, 4, 6))
-            pygame.draw.rect(superficie, color_piel, (x + 6, y + 18, 4, 4))
+            # Brazo derecho adelante
+            pygame.draw.rect(superficie, color_piel, (x + 23, y + 20, 3, 4))
+            pygame.draw.rect(superficie, BLANCO, (x + 23, y + 24, 4, 3))  # Guante
+            # Brazo izquierdo atrás
+            pygame.draw.rect(superficie, color_piel, (x + 5, y + 21, 3, 3))
+            pygame.draw.rect(superficie, BLANCO, (x + 4, y + 24, 4, 2))  # Guante
         else:
-            pygame.draw.rect(superficie, color_piel, (x + 6, y + 16, 4, 6))
-            pygame.draw.rect(superficie, color_piel, (x + 22, y + 18, 4, 4))
+            # Brazo izquierdo adelante
+            pygame.draw.rect(superficie, color_piel, (x + 6, y + 20, 3, 4))
+            pygame.draw.rect(superficie, BLANCO, (x + 5, y + 24, 4, 3))  # Guante
+            # Brazo derecho atrás
+            pygame.draw.rect(superficie, color_piel, (x + 24, y + 21, 3, 3))
+            pygame.draw.rect(superficie, BLANCO, (x + 24, y + 24, 4, 2))  # Guante
         
-        # Zapatos marrones (más grandes si es Mario grande)
-        zapato_height = 4 if self.estado == EstadoMario.PEQUENO else 6
-        pygame.draw.rect(superficie, MARRON, (x + 8, y + self.alto - zapato_height, 6, zapato_height))
-        pygame.draw.rect(superficie, MARRON, (x + 18, y + self.alto - zapato_height, 6, zapato_height))
+        # === ZAPATOS MARRONES GRANDES ===
+        zapato_y = y + self.alto - 4
+        # Zapato izquierdo
+        pygame.draw.rect(superficie, (101, 67, 33), (x + 8, zapato_y, 7, 4))
+        pygame.draw.rect(superficie, (70, 45, 20), (x + 8, zapato_y + 3, 7, 1))  # Suela
+        # Zapato derecho
+        pygame.draw.rect(superficie, (101, 67, 33), (x + 17, zapato_y, 7, 4))
+        pygame.draw.rect(superficie, (70, 45, 20), (x + 17, zapato_y + 3, 7, 1))  # Suela
         
     def _dibujar_detalles(self, superficie: pygame.Surface) -> None:
         """
-        Dibuja los detalles de Mario como ojos, bigote y extremidades.
+        Dibuja detalles adicionales y animaciones de piernas.
 
         Args:
             superficie: Superficie de pygame donde se dibujarán los detalles
         """
-        x, y = self.rect.x, self.rect.y
-        
-        # Ojos (dos puntos negros)
-        if self.direccion == 'derecha':
-            pygame.draw.circle(superficie, NEGRO, (x + 12, y + 8), 1)
-            pygame.draw.circle(superficie, NEGRO, (x + 18, y + 8), 1)
-        else:
-            pygame.draw.circle(superficie, NEGRO, (x + 14, y + 8), 1)
-            pygame.draw.circle(superficie, NEGRO, (x + 20, y + 8), 1)
-        
-        # Bigote (línea negra característica)
-        pygame.draw.rect(superficie, NEGRO, (x + 14, y + 10, 4, 2))
-        
-        # Letra "M" en la gorra (detalle adicional)
-        pygame.draw.circle(superficie, BLANCO, (x + 16, y + 6), 3)
-        # Pequeña "M" pixelada
-        pygame.draw.rect(superficie, ROJO, (x + 15, y + 5, 1, 2))
-        pygame.draw.rect(superficie, ROJO, (x + 17, y + 5, 1, 2))
-        pygame.draw.rect(superficie, ROJO, (x + 16, y + 5, 1, 1))
-        
-        # Bigote
-        bigote_x = self.rect.x + (16 if self.direccion == 'derecha' else 12)
-        pygame.draw.rect(superficie, NEGRO, (bigote_x, self.rect.y + 10, 8, 2))
-        
-        # Brazos
-        brazo_x = self.rect.x + (26 if self.direccion == 'derecha' else 0)
-        pygame.draw.rect(superficie, AMARILLO, (brazo_x, self.rect.y + 16, 6, 12))
-        
-        # Piernas con animación
-        if abs(self.velocidad_x) > 0:
+        # Animación de piernas al caminar
+        if abs(self.velocidad_x) > 0.5:
             self._animar_piernas(superficie)
-        else:
-            # Piernas estáticas
-            pygame.draw.rect(superficie, AMARILLO, 
-                           (self.rect.x + 10, self.rect.bottom - 12, 4, 12))
-            pygame.draw.rect(superficie, AMARILLO, 
-                           (self.rect.x + 18, self.rect.bottom - 12, 4, 12))
             
     def _animar_piernas(self, superficie: pygame.Surface) -> None:
         """
-        Aplica la animación de movimiento a las piernas de Mario.
+        Aplica la animación de movimiento a las piernas/zapatos de Mario.
 
         Args:
             superficie: Superficie de pygame donde se dibujará la animación
         """
-        # Animación más suave basada en seno
-        offset_izq = int(math.sin(self.animacion_frame * 0.8) * 3)
-        offset_der = int(math.sin(self.animacion_frame * 0.8 + math.pi) * 3)
+        # Animación de caminar - alternancia de piernas
+        x, y = self.rect.x, self.rect.y
         
-        # Pierna izquierda
-        pygame.draw.rect(superficie, AMARILLO, 
-                        (self.rect.x + 10, self.rect.bottom - 12 + offset_izq, 4, 12 - abs(offset_izq)))
+        # Determinar fase de animación (0-3)
+        fase = self.animacion_frame % 4
         
-        # Pierna derecha
-        pygame.draw.rect(superficie, AMARILLO, 
-                        (self.rect.x + 18, self.rect.bottom - 12 + offset_der, 4, 12 - abs(offset_der)))
+        # Color overol
+        color_overol = (0, 0, 200) if self.estado != EstadoMario.FUEGO else ROJO
+        
+        if fase == 0 or fase == 2:
+            # Posición neutra
+            # Piernas (overol azul)
+            pygame.draw.rect(superficie, color_overol, (x + 10, y + 28, 4, 2))
+            pygame.draw.rect(superficie, color_overol, (x + 18, y + 28, 4, 2))
+            
+        elif fase == 1:
+            # Pierna izquierda adelante, derecha atrás
+            pygame.draw.rect(superficie, color_overol, (x + 10, y + 27, 4, 3))
+            pygame.draw.rect(superficie, color_overol, (x + 18, y + 29, 4, 1))
+            
+        else:  # fase == 3
+            # Pierna derecha adelante, izquierda atrás  
+            pygame.draw.rect(superficie, color_overol, (x + 10, y + 29, 4, 1))
+            pygame.draw.rect(superficie, color_overol, (x + 18, y + 27, 4, 3))
     
     def obtener_estado(self) -> EstadoMario:
         """
