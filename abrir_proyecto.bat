@@ -1,0 +1,3 @@
+@echo off
+echo Abriendo Mario Bros en VS Code...
+code "C:\Users\camil\Downloads\GameAdventurev3-main\GameAdventurev2-main\GameAdventurev2-main\Gamepy"
