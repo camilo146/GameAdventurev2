@@ -1,7 +1,10 @@
 import pygame
 import sys
 import random
+<<<<<<< HEAD
 import os
+=======
+>>>>>>> 454549a (se cambio por el juego de mario)
 
 # Inicializar Pygame
 pygame.init()
@@ -904,6 +907,7 @@ class Juego:
         self.mensaje = ""
         self.mensaje_tiempo = 0
         
+<<<<<<< HEAD
         # Agregar:
         self.estado = "MENU"  # Estados: MENU, JUGANDO, PAUSA, GAMEOVER
         # Inicializar sonidos de manera segura
@@ -917,6 +921,8 @@ class Juego:
             self.sonido_salto = None
             self.sonido_moneda = None
         
+=======
+>>>>>>> 454549a (se cambio por el juego de mario)
     def reiniciar_nivel(self):
         self.mario = Mario(50, 400)
         self.nivel = Nivel(self.nivel_actual)
